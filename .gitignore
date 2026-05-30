@@ -1,0 +1,35 @@
+# Ignore IDE
+.idea/
+*.iml
+
+# Ignore OS
+.DS_Store
+Thumbs.db
+
+# Ignore Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+env/
+.venv/
+
+# Ignore Android
+build/
+.gradle/
+*.apk
+*.aab
+local.properties
+
+# Ignore Node
+node_modules/
+
+# Ignore Logs
+*.log
+
+# Ignore Media
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.png
