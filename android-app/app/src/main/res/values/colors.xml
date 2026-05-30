@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Purple -->
+    <color name="purple_primary">#7C4DFF</color>
+    <color name="purple_dark">#6200EA</color>
+    <color name="purple_light">#D8B4FE</color>
+
+    <!-- Pastel Colors -->
+    <color name="pink_light">#FDE68A</color>
+    <color name="mint_green">#A7F3D0</color>
+    <color name="blue_light">#93C5FD</color>
+    <color name="yellow_light">#FDE68A</color>
+
+    <!-- Neutral -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="gray_light">#F5F5F5</color>
+    <color name="gray">#9E9E9E</color>
+    <color name="gray_dark">#616161</color>
+
+    <!-- Status Colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
+
+    <!-- Teal -->
+    <color name="teal">#14B8A6</color>
+
+    <!-- Score Colors -->
+    <color name="score_high">#4CAF50</color>
+    <color name="score_medium">#FF9800</color>
+    <color name="score_low">#F44336</color>
+
+    <!-- Nav -->
+    <color name="nav_selected">#7C4DFF</color>
+    <color name="nav_normal">#9E9E9E</color>
+</resources>

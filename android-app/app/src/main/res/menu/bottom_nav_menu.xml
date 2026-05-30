@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_levels"
+        android:icon="@drawable/ic_trophy"
+        android:title="@string/tab_levels" />
+    <item
+        android:id="@+id/nav_records"
+        android:icon="@drawable/ic_clipboard"
+        android:title="@string/tab_records" />
+    <item
+        android:id="@+id/nav_profile"
+        android:icon="@drawable/ic_user_purple"
+        android:title="@string/tab_profile" />
+</menu>
