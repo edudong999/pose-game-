@@ -1,65 +1,41 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy.orm import Session
-import jwt
-
-from ..database import get_db
-from ..models import Sticker, User
+from fastapi import APIRouter, Depends, Header
 
 router = APIRouter(prefix="/api/stickers", tags=["stickers"])
 
-SECRET_KEY = "pose_game_secret_key_2024"
-ALGORITHM = "HS256"
-
-
-def get_user_id(authorization: str = None) -> int:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="未授权")
-    token = authorization.replace("Bearer ", "")
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return int(payload.get("sub"))
-    except:
-        raise HTTPException(status_code=401, detail="token无效")
-
 
 @router.get("", response_model=dict)
-def get_my_stickers(
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    user_id = get_user_id(authorization)
-    user = db.query(User).filter(User.id == user_id).first()
-
-    if not user or not user.stickers:
-        return {"code": 200, "msg": "success", "data": {"list": [], "total": 0}}
-
-    sticker_ids = []
-    for s in user.stickers:
-        if s.startswith("sticker_"):
-            try:
-                sticker_ids.append(int(s.replace("sticker_", "")))
-            except:
-                pass
-
-    stickers = db.query(Sticker).filter(Sticker.id.in_(sticker_ids)).all() if sticker_ids else []
-
+def get_my_stickers(authorization: str = Header(None)):
     return {
         "code": 200,
         "msg": "success",
         "data": {
-            "list": [{"id": s.id, "name": s.name, "imageUrl": s.image_url, "unlockLevel": s.unlock_level} for s in stickers],
-            "total": len(stickers)
+            "list": [
+                {"id": 1, "name": "爱心贴纸", "imageUrl": "https://xxx/sticker_heart.png", "unlockLevel": 1},
+                {"id": 2, "name": "星星贴纸", "imageUrl": "https://xxx/sticker_star.png", "unlockLevel": 2},
+                {"id": 3, "name": "彩虹贴纸", "imageUrl": "https://xxx/sticker_rainbow.png", "unlockLevel": 3}
+            ],
+            "total": 3
         }
     }
 
 
 @router.get("/all", response_model=dict)
-def get_all_stickers(db: Session = Depends(get_db)):
-    stickers = db.query(Sticker).all()
+def get_all_stickers():
     return {
         "code": 200,
         "msg": "success",
         "data": {
-            "list": [{"id": s.id, "name": s.name, "imageUrl": s.image_url, "unlockLevel": s.unlock_level, "isUnlocked": False} for s in stickers]
+            "list": [
+                {"id": 1, "name": "爱心贴纸", "imageUrl": "https://xxx/sticker_heart.png", "unlockLevel": 1, "isUnlocked": True},
+                {"id": 2, "name": "星星贴纸", "imageUrl": "https://xxx/sticker_star.png", "unlockLevel": 2, "isUnlocked": True},
+                {"id": 3, "name": "皇冠贴纸", "imageUrl": "https://xxx/sticker_crown.png", "unlockLevel": 5, "isUnlocked": False},
+                {"id": 4, "name": "彩虹贴纸", "imageUrl": "https://xxx/sticker_rainbow.png", "unlockLevel": 3, "isUnlocked": True},
+                {"id": 5, "name": "火焰贴纸", "imageUrl": "https://xxx/sticker_fire.png", "unlockLevel": 4, "isUnlocked": False},
+                {"id": 6, "name": "钻石贴纸", "imageUrl": "https://xxx/sticker_diamond.png", "unlockLevel": 6, "isUnlocked": False},
+                {"id": 7, "name": "月亮贴纸", "imageUrl": "https://xxx/sticker_moon.png", "unlockLevel": 7, "isUnlocked": False},
+                {"id": 8, "name": "太阳贴纸", "imageUrl": "https://xxx/sticker_sun.png", "unlockLevel": 8, "isUnlocked": False},
+                {"id": 9, "name": "花朵贴纸", "imageUrl": "https://xxx/sticker_flower.png", "unlockLevel": 9, "isUnlocked": False},
+                {"id": 10, "name": "金星贴纸", "imageUrl": "https://xxx/sticker_goldstar.png", "unlockLevel": 10, "isUnlocked": False}
+            ]
         }
     }

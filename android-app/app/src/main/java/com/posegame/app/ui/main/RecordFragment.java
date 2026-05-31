@@ -19,6 +19,7 @@ import com.posegame.app.data.api.ApiService;
 import com.posegame.app.data.api.RetrofitClient;
 import com.posegame.app.data.model.ApiResponse;
 import com.posegame.app.data.model.GameRecord;
+import com.posegame.app.data.model.RecordListResponse;
 import com.posegame.app.util.SharedPreferencesUtil;
 import com.posegame.app.util.ToastUtil;
 
