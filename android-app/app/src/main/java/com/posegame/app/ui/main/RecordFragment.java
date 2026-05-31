@@ -53,7 +53,11 @@ public class RecordFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         apiService = RetrofitClient.getInstance().getApiService();
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         rvRecords = view.findViewById(R.id.rvRecords);
         progressBar = view.findViewById(R.id.progressBar);
@@ -64,7 +68,9 @@ public class RecordFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        loadRecords();
+        if (rvRecords != null && progressBar != null) {
+            loadRecords();
+        }
     }
 
     private void setupRecyclerView() {
@@ -74,6 +80,13 @@ public class RecordFragment extends Fragment {
     }
 
     private void loadRecords() {
+        if (progressBar == null) {
+            return;
+        }
+        if (prefsUtil == null) {
+            progressBar.setVisibility(View.GONE);
+            return;
+        }
         progressBar.setVisibility(View.VISIBLE);
 
         String authHeader = prefsUtil.getAuthHeader();

@@ -74,6 +74,7 @@ public class LevelListFragment extends Fragment {
     }
 
     private void loadLevels() {
+        if (progressBar == null) return;
         progressBar.setVisibility(View.VISIBLE);
 
         apiService.getLevels().enqueue(new Callback<ApiResponse<LevelListResponse>>() {
@@ -101,7 +102,9 @@ public class LevelListFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        loadLevels();
+        if (rvLevels != null && progressBar != null) {
+            loadLevels();
+        }
     }
 }
 

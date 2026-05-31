@@ -48,15 +48,27 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         // Check if already logged in
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
-        if (prefsUtil.isLoggedIn()) {
-            goToMain();
-            return;
+        try {
+            PoseApp app = PoseApp.getInstance();
+            if (app != null && app.getPrefsUtil() != null && app.getPrefsUtil().isLoggedIn()) {
+                goToMain();
+                return;
+            }
+        } catch (Exception e) {
+            // Continue to login screen if prefs check fails
         }
 
         setContentView(R.layout.activity_login);
 
-        apiService = RetrofitClient.getInstance().getApiService();
+        try {
+            apiService = RetrofitClient.getInstance().getApiService();
+            PoseApp app = PoseApp.getInstance();
+            if (app != null) {
+                prefsUtil = app.getPrefsUtil();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("LoginActivity", "Failed to init RetrofitClient", e);
+        }
 
         initViews();
         setListeners();
@@ -127,6 +139,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void saveUserSession(UserInfo userInfo) {
+        if (prefsUtil == null) return;
         prefsUtil.saveToken(userInfo.getToken());
         prefsUtil.saveUserId(userInfo.getUserId());
         prefsUtil.saveNickname(userInfo.getNickname());

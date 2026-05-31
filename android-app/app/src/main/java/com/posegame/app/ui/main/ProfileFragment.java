@@ -62,7 +62,11 @@ public class ProfileFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         apiService = RetrofitClient.getInstance().getApiService();
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         initViews(view);
         setupListeners();
@@ -71,8 +75,10 @@ public class ProfileFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        updateProfile();
-        loadStickersCount();
+        if (tvNickname != null && tvTotalScore != null) {
+            updateProfile();
+            loadStickersCount();
+        }
     }
 
     private void initViews(View view) {
@@ -110,12 +116,14 @@ public class ProfileFragment extends Fragment {
     }
 
     private void updateProfile() {
+        if (prefsUtil == null) return;
         tvNickname.setText(prefsUtil.getNickname());
         tvTotalScore.setText(String.valueOf(prefsUtil.getTotalScore()));
         tvLevelUnlock.setText(String.valueOf(prefsUtil.getLevelUnlock()));
     }
 
     private void loadStickersCount() {
+        if (prefsUtil == null) return;
         String authHeader = prefsUtil.getAuthHeader();
         if (authHeader == null) return;
 

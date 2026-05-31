@@ -71,7 +71,11 @@ public class ResultActivity extends AppCompatActivity {
         setContentView(R.layout.activity_result);
 
         apiService = RetrofitClient.getInstance().getApiService();
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         levelId = getIntent().getIntExtra("level_id", 1);
         levelName = getIntent().getStringExtra("level_name");

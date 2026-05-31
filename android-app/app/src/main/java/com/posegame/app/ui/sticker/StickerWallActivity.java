@@ -48,7 +48,11 @@ public class StickerWallActivity extends AppCompatActivity {
         setContentView(R.layout.activity_sticker_wall);
 
         apiService = RetrofitClient.getInstance().getApiService();
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         initViews();
         setupListeners();

@@ -52,7 +52,11 @@ public class RegisterActivity extends AppCompatActivity {
         setContentView(R.layout.activity_register);
 
         apiService = RetrofitClient.getInstance().getApiService();
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         initViews();
         setListeners();
@@ -145,6 +149,7 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void saveUserSession(UserInfo userInfo) {
+        if (prefsUtil == null) return;
         prefsUtil.saveToken(userInfo.getToken());
         prefsUtil.saveUserId(userInfo.getUserId());
         prefsUtil.saveNickname(userInfo.getNickname());

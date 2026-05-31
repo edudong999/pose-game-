@@ -1,22 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
-from passlib.context import CryptContext
+from fastapi import APIRouter, HTTPException, Header
+from pydantic import BaseModel
+from typing import Optional, List
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-MOCK_USER = {
-    "userId": 1,
-    "nickname": "测试用户",
-    "avatarUrl": None,
-    "totalScore": 850,
-    "levelUnlock": 5,
-    "stickers": ["sticker_001", "sticker_002", "sticker_003"]
-}
+class UserLoginRequest(BaseModel):
+    nickname: str
+    password: str
+
+
+class UserRegisterRequest(BaseModel):
+    nickname: str
+    password: str
 
 
 @router.post("/register", response_model=dict)
-def register(user):
+def register(user: UserRegisterRequest):
     return {
         "code": 200,
         "msg": "注册成功",
@@ -29,13 +29,13 @@ def register(user):
 
 
 @router.post("/login", response_model=dict)
-def login(user):
+def login(user: UserLoginRequest):
     return {
         "code": 200,
         "msg": "登录成功",
         "data": {
             "userId": 1,
-            "nickname": user.nickname if hasattr(user, 'nickname') else "测试用户",
+            "nickname": user.nickname,
             "avatarUrl": None,
             "totalScore": 850,
             "levelUnlock": 5,

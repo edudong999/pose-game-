@@ -33,7 +33,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        prefsUtil = PoseApp.getInstance().getPrefsUtil();
+        try {
+            prefsUtil = PoseApp.getInstance() != null ? PoseApp.getInstance().getPrefsUtil() : null;
+        } catch (Exception e) {
+            prefsUtil = null;
+        }
 
         initViews();
         setupHeader();
@@ -57,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupHeader() {
+        if (headerView == null) return;
         ivAvatar = findViewById(R.id.ivAvatar);
         tvNickname = findViewById(R.id.tvNickname);
         tvLevel = findViewById(R.id.tvLevel);
@@ -71,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateHeader() {
+        if (prefsUtil == null) return;
         tvNickname.setText(prefsUtil.getNickname());
         tvLevel.setText("Lv." + prefsUtil.getLevelUnlock());
         tvCoin.setText(String.valueOf(prefsUtil.getTotalScore()));
