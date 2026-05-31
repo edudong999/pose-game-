@@ -170,12 +170,7 @@ public class ResultActivity extends AppCompatActivity {
         String authHeader = prefsUtil.getAuthHeader();
         if (authHeader == null) return;
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("levelId", levelId);
-        params.put("score", score);
-        params.put("isPass", isPass);
-
-        apiService.submitRecord(authHeader, params).enqueue(new Callback<ApiResponse<GameRecordSubmitResponse>>() {
+        apiService.submitRecord(authHeader, levelId, score, isPass).enqueue(new Callback<ApiResponse<GameRecordSubmitResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<GameRecordSubmitResponse>> call, Response<ApiResponse<GameRecordSubmitResponse>> response) {
                 // Silently handle - already showing result to user

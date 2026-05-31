@@ -25,33 +25,34 @@ def get_user_id(authorization: str = None) -> int:
 
 @router.post("/record", response_model=dict)
 def submit_record(
-    record,
+    levelId: int,
+    score: int,
+    isPass: bool,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
     user_id = get_user_id(authorization)
 
-    level = db.query(Level).filter(Level.id == record.levelId).first()
+    level = db.query(Level).filter(Level.id == levelId).first()
     if not level:
         raise HTTPException(status_code=404, detail="关卡不存在")
 
     db_record = GameRecord(
         user_id=user_id,
-        level_id=record.levelId,
-        score=record.score,
-        is_pass=record.isPass,
-        media_url=record.mediaUrl
+        level_id=levelId,
+        score=score,
+        is_pass=isPass
     )
     db.add(db_record)
 
     user = db.query(User).filter(User.id == user_id).first()
     new_stickers = []
     if user:
-        user.total_score += record.score
-        if record.isPass and user.level_unlock <= record.levelId:
-            user.level_unlock = record.levelId + 1
+        user.total_score += score
+        if isPass and user.level_unlock <= levelId:
+            user.level_unlock = levelId + 1
 
-        if record.isPass and level.sticker_reward:
+        if isPass and level.sticker_reward:
             if user.stickers is None:
                 user.stickers = []
             if level.sticker_reward not in user.stickers:
@@ -65,9 +66,9 @@ def submit_record(
         "msg": "记录成功",
         "data": {
             "recordId": db_record.id,
-            "score": record.score,
-            "isPass": record.isPass,
-            "stickerUnlocked": level.sticker_reward if record.isPass else None,
+            "score": score,
+            "isPass": isPass,
+            "stickerUnlocked": level.sticker_reward if isPass else None,
             "newStickers": new_stickers
         }
     }

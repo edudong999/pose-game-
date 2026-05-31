@@ -20,7 +20,7 @@ import com.posegame.app.util.SharedPreferencesUtil;
 public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
-    private View headerView;
+    private View headerView; // kept for potential future use
     private ImageView ivAvatar;
     private TextView tvNickname;
     private TextView tvLevel;
@@ -52,31 +52,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        headerView = findViewById(R.id.header);
         bottomNav = findViewById(R.id.bottomNav);
-    }
+        if (bottomNav == null) return;
 
-    private void setupHeader() {
         ivAvatar = findViewById(R.id.ivAvatar);
         tvNickname = findViewById(R.id.tvNickname);
         tvLevel = findViewById(R.id.tvLevel);
         tvCoin = findViewById(R.id.tvCoin);
+    }
+
+    private void setupHeader() {
+        if (ivAvatar == null || tvNickname == null || tvLevel == null || tvCoin == null) return;
 
         updateHeader();
 
         // Quick access cards
-        findViewById(R.id.cardLevels).setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_levels));
-        findViewById(R.id.cardRecords).setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_records));
-        findViewById(R.id.cardProfile).setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_profile));
+        View cardLevels = findViewById(R.id.cardLevels);
+        View cardRecords = findViewById(R.id.cardRecords);
+        View cardProfile = findViewById(R.id.cardProfile);
+
+        if (cardLevels != null) cardLevels.setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_levels));
+        if (cardRecords != null) cardRecords.setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_records));
+        if (cardProfile != null) cardProfile.setOnClickListener(v -> bottomNav.setSelectedItemId(R.id.nav_profile));
     }
 
     private void updateHeader() {
-        tvNickname.setText(prefsUtil.getNickname());
-        tvLevel.setText("Lv." + prefsUtil.getLevelUnlock());
-        tvCoin.setText(String.valueOf(prefsUtil.getTotalScore()));
+        if (prefsUtil == null) return;
+        if (tvNickname != null) tvNickname.setText(prefsUtil.getNickname());
+        if (tvLevel != null) tvLevel.setText("Lv." + prefsUtil.getLevelUnlock());
+        if (tvCoin != null) tvCoin.setText(String.valueOf(prefsUtil.getTotalScore()));
     }
 
     private void setupBottomNavigation() {
+        if (bottomNav == null) return;
         bottomNav.setOnItemSelectedListener(item -> {
             Fragment fragment = null;
             int itemId = item.getItemId();
@@ -96,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadFragment(Fragment fragment) {
+        if (fragment == null) return;
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.fragmentContainer, fragment)

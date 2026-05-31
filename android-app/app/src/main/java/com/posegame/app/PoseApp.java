@@ -1,6 +1,8 @@
 package com.posegame.app;
 
 import android.app.Application;
+import android.util.Log;
+
 import com.posegame.app.util.SharedPreferencesUtil;
 
 /**
@@ -8,6 +10,7 @@ import com.posegame.app.util.SharedPreferencesUtil;
  */
 public class PoseApp extends Application {
 
+    private static final String TAG = "PoseApp";
     private static PoseApp instance;
     private SharedPreferencesUtil prefsUtil;
 
@@ -15,7 +18,12 @@ public class PoseApp extends Application {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        prefsUtil = new SharedPreferencesUtil(this);
+        try {
+            prefsUtil = new SharedPreferencesUtil(this);
+            Log.d(TAG, "PoseApp initialized successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error initializing PoseApp", e);
+        }
     }
 
     public static PoseApp getInstance() {

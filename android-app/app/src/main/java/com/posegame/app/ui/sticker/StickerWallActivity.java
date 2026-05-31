@@ -60,16 +60,48 @@ public class StickerWallActivity extends AppCompatActivity {
         tvProgress = findViewById(R.id.tvProgress);
         rvStickers = findViewById(R.id.rvStickers);
 
-        adapter = new StickerAdapter(stickerList);
-        rvStickers.setLayoutManager(new GridLayoutManager(this, 3));
-        rvStickers.setAdapter(adapter);
+        try {
+            adapter = new StickerAdapter(stickerList);
+            rvStickers.setLayoutManager(new GridLayoutManager(this, 3));
+            rvStickers.setAdapter(adapter);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void setupListeners() {
-        btnBack.setOnClickListener(v -> finish());
+        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
     }
 
     private void loadStickers() {
+        // First load user's stickers to know which are unlocked
+        String authHeader = prefsUtil != null ? prefsUtil.getAuthHeader() : null;
+
+        if (authHeader != null) {
+            apiService.getMyStickers(authHeader).enqueue(new Callback<ApiResponse<StickerListResponse>>() {
+                @Override
+                public void onResponse(Call<ApiResponse<StickerListResponse>> call, Response<ApiResponse<StickerListResponse>> response) {
+                    List<Integer> unlockedIds = new ArrayList<>();
+                    if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
+                        for (Sticker s : response.body().getData().getList()) {
+                            unlockedIds.add(s.getId());
+                        }
+                    }
+                    // Then load all stickers with unlocked status
+                    loadAllStickersWithUnlockStatus(unlockedIds);
+                }
+
+                @Override
+                public void onFailure(Call<ApiResponse<StickerListResponse>> call, Throwable t) {
+                    loadAllStickersWithUnlockStatus(new ArrayList<>());
+                }
+            });
+        } else {
+            loadAllStickersWithUnlockStatus(new ArrayList<>());
+        }
+    }
+
+    private void loadAllStickersWithUnlockStatus(final List<Integer> unlockedIds) {
         apiService.getAllStickers().enqueue(new Callback<ApiResponse<StickerListResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<StickerListResponse>> call, Response<ApiResponse<StickerListResponse>> response) {
@@ -77,18 +109,13 @@ public class StickerWallActivity extends AppCompatActivity {
                     ApiResponse<StickerListResponse> apiResponse = response.body();
                     if (apiResponse.isSuccess() && apiResponse.getData() != null) {
                         stickerList.clear();
-                        stickerList.addAll(apiResponse.getData().getList());
-                        totalCount = stickerList.size();
-
-                        // Count unlocked
-                        unlockedCount = 0;
-                        for (Sticker sticker : stickerList) {
-                            if (sticker.isUnlocked()) {
-                                unlockedCount++;
-                            }
+                        for (Sticker sticker : apiResponse.getData().getList()) {
+                            sticker.setUnlocked(unlockedIds.contains(sticker.getId()));
+                            stickerList.add(sticker);
                         }
-
-                        adapter.notifyDataSetChanged();
+                        totalCount = stickerList.size();
+                        unlockedCount = unlockedIds.size();
+                        if (adapter != null) adapter.notifyDataSetChanged();
                         updateProgress();
                     }
                 }
@@ -96,12 +123,14 @@ public class StickerWallActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<ApiResponse<StickerListResponse>> call, Throwable t) {
-                ToastUtil.show(StickerWallActivity.this, R.string.msg_network_error);
+                // Silently fail
             }
         });
     }
 
     private void updateProgress() {
-        tvProgress.setText(String.format(getString(R.string.sticker_count_format), unlockedCount, totalCount));
+        if (tvProgress != null) {
+            tvProgress.setText(unlockedCount + " / " + totalCount);
+        }
     }
 }

@@ -41,16 +41,3 @@ public class PoseType {
         this.icon = icon;
     }
 }
-
-class PoseTypeResponse {
-    @SerializedName("list")
-    private List<PoseType> list;
-
-    public List<PoseType> getList() {
-        return list;
-    }
-
-    public void setList(List<PoseType> list) {
-        this.list = list;
-    }
-}

@@ -76,7 +76,15 @@ public class LevelListFragment extends Fragment {
     private void loadLevels() {
         progressBar.setVisibility(View.VISIBLE);
 
-        apiService.getLevels().enqueue(new Callback<ApiResponse<LevelListResponse>>() {
+        String authHeader = null;
+        try {
+            authHeader = PoseApp.getInstance().getPrefsUtil().getAuthHeader();
+        } catch (Exception e) {
+            // Not logged in
+        }
+
+        final String header = authHeader;
+        apiService.getLevels(header).enqueue(new Callback<ApiResponse<LevelListResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<LevelListResponse>> call, Response<ApiResponse<LevelListResponse>> response) {
                 progressBar.setVisibility(View.GONE);

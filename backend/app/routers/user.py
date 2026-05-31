@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 import jwt
 from datetime import datetime, timedelta
 
@@ -11,8 +11,6 @@ from ..schemas import UserCreate, UserLogin, UserResponse, UserLoginResponse
 router = APIRouter(prefix="/api/user", tags=["user"])
 SECRET_KEY = "pose_game_secret_key_2024"
 ALGORITHM = "HS256"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_token(user_id: int) -> str:
@@ -27,7 +25,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="用户已存在")
 
-    hashed_password = pwd_context.hash(user.password)
+    hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     db_user = User(nickname=user.nickname, password=hashed_password)
     db.add(db_user)
     db.commit()
@@ -48,7 +46,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=dict)
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.nickname == user.nickname).first()
-    if not db_user or not pwd_context.verify(user.password, db_user.password):
+    if not db_user or not bcrypt.checkpw(user.password.encode('utf-8'), db_user.password.encode('utf-8')):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     token = create_token(db_user.id)

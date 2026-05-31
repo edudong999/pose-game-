@@ -65,27 +65,28 @@ public class LeaderboardAdapter extends RecyclerView.Adapter<LeaderboardAdapter.
         }
 
         void bind(LeaderboardEntry entry) {
+            if (entry == null) return;
             int rank = entry.getRank();
-            tvRank.setText(String.valueOf(rank));
-            tvNickname.setText(entry.getNickname());
-            tvScore.setText(entry.getScore() + "分");
+            if (tvRank != null) tvRank.setText(String.valueOf(rank));
+            if (tvNickname != null) tvNickname.setText(entry.getNickname());
+            if (tvScore != null) tvScore.setText(entry.getScore() + "分");
 
             // Rank badge
-            if (rank == 1) {
+            if (rank == 1 && ivRankBadge != null) {
                 ivRankBadge.setImageResource(R.drawable.ic_rank_gold);
-                tvRank.setVisibility(View.GONE);
+                if (tvRank != null) tvRank.setVisibility(View.GONE);
                 ivRankBadge.setVisibility(View.VISIBLE);
-            } else if (rank == 2) {
+            } else if (rank == 2 && ivRankBadge != null) {
                 ivRankBadge.setImageResource(R.drawable.ic_rank_silver);
-                tvRank.setVisibility(View.GONE);
+                if (tvRank != null) tvRank.setVisibility(View.GONE);
                 ivRankBadge.setVisibility(View.VISIBLE);
-            } else if (rank == 3) {
+            } else if (rank == 3 && ivRankBadge != null) {
                 ivRankBadge.setImageResource(R.drawable.ic_rank_bronze);
-                tvRank.setVisibility(View.GONE);
+                if (tvRank != null) tvRank.setVisibility(View.GONE);
                 ivRankBadge.setVisibility(View.VISIBLE);
             } else {
-                tvRank.setVisibility(View.VISIBLE);
-                ivRankBadge.setVisibility(View.GONE);
+                if (tvRank != null) tvRank.setVisibility(View.VISIBLE);
+                if (ivRankBadge != null) ivRankBadge.setVisibility(View.GONE);
             }
         }
     }

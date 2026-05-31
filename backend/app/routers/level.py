@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
+import jwt
 
 from ..database import get_db
-from ..models import Level, GameRecord
+from ..models import Level, GameRecord, User
 
 router = APIRouter(prefix="/api/levels", tags=["levels"])
 
@@ -21,15 +22,42 @@ POSE_TYPES = [
 
 
 @router.get("", response_model=dict)
-def get_levels(db: Session = Depends(get_db)):
+def get_levels(request: Request, db: Session = Depends(get_db)):
+    # Get authorization from request headers (case-insensitive)
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+
+    # Get current user id if token provided
+    user_id = None
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            SECRET_KEY = "pose_game_secret_key_2024"
+            token = auth_header.replace("Bearer ", "")
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_id = int(payload.get("sub"))
+        except:
+            pass
+
     levels = db.query(Level).all()
+
     result = []
     for level in levels:
-        passed = db.query(GameRecord).filter(
-            GameRecord.level_id == level.id,
-            GameRecord.is_pass == True
-        ).first() is not None
-        is_unlocked = level.id <= 3
+        # Check if CURRENT user passed this level
+        passed = False
+        is_unlocked = False
+        if user_id:
+            passed = db.query(GameRecord).filter(
+                GameRecord.level_id == level.id,
+                GameRecord.user_id == user_id,
+                GameRecord.is_pass == True
+            ).first() is not None
+
+            # Unlock based on user's level_unlock
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                is_unlocked = level.id <= user.level_unlock
+        else:
+            # For anonymous users, show first 3 as unlocked
+            is_unlocked = level.id <= 3
 
         result.append({
             "id": level.id,

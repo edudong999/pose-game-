@@ -110,19 +110,24 @@ public class ProfileFragment extends Fragment {
     }
 
     private void updateProfile() {
-        tvNickname.setText(prefsUtil.getNickname());
-        tvTotalScore.setText(String.valueOf(prefsUtil.getTotalScore()));
-        tvLevelUnlock.setText(String.valueOf(prefsUtil.getLevelUnlock()));
+        String nickname = prefsUtil.getNickname();
+        int totalScore = prefsUtil.getTotalScore();
+        int levelUnlock = prefsUtil.getLevelUnlock();
+
+        if (tvNickname != null && nickname != null) tvNickname.setText(nickname);
+        if (tvTotalScore != null) tvTotalScore.setText(String.valueOf(totalScore));
+        if (tvLevelUnlock != null) tvLevelUnlock.setText(String.valueOf(levelUnlock));
     }
 
     private void loadStickersCount() {
+        if (apiService == null || prefsUtil == null) return;
         String authHeader = prefsUtil.getAuthHeader();
         if (authHeader == null) return;
 
         apiService.getMyStickers(authHeader).enqueue(new Callback<ApiResponse<StickerListResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<StickerListResponse>> call, Response<ApiResponse<StickerListResponse>> response) {
-                if (response.isSuccessful() && response.body() != null) {
+                if (response.isSuccessful() && response.body() != null && tvStickersCount != null) {
                     ApiResponse<StickerListResponse> apiResponse = response.body();
                     if (apiResponse.isSuccess() && apiResponse.getData() != null) {
                         tvStickersCount.setText(String.valueOf(apiResponse.getData().getTotal()));

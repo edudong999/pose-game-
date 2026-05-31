@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class RetrofitClient {
 
-    private static final String BASE_URL = "http://10.0.2.2:5000/api/";
+    private static final String BASE_URL = "http://10.78.207.58:5000/api/";
     private static RetrofitClient instance;
     private final Retrofit retrofit;
 
