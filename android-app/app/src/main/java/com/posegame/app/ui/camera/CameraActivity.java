@@ -228,12 +228,10 @@ public class CameraActivity extends AppCompatActivity {
             .build();
 
         imageAnalysis.setAnalyzer(cameraExecutor, image -> {
-            int n = analyzerInvocationCount.incrementAndGet();
+            analyzerInvocationCount.incrementAndGet();
             // Throttle analysis to avoid too many network requests
             int now = (int) System.currentTimeMillis();
-            int sinceLast = now - lastAnalysisTime.get();
-            setDebugStatus("ANALYZER #" + n + " dt=" + sinceLast + "ms");
-            if (sinceLast < ANALYSIS_INTERVAL_MS) {
+            if (now - lastAnalysisTime.get() < ANALYSIS_INTERVAL_MS) {
                 image.close();
                 return;
             }
