@@ -18,7 +18,6 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
-import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.ImageProxy;
@@ -98,16 +97,20 @@ public class CameraActivity extends AppCompatActivity {
     // CameraX
     private ProcessCameraProvider cameraProvider;
     private ImageCapture imageCapture;
-    private ImageAnalysis imageAnalysis;
     private Preview preview;
 
     // Pose detection
     private MediaPipePoseDetector poseDetector;
-    private AtomicInteger lastAnalysisTime = new AtomicInteger(0);
     private AtomicInteger analyzerInvocationCount = new AtomicInteger(0);
-    private static final int ANALYSIS_INTERVAL_MS = 500; // Throttle to 2 fps for analysis
     private int currentRealtimeScore = 0;
     private BestFrameTracker bestFrameTracker;
+
+    // 帧轮询：录像模式倒计时期间用 imageCapture.takePicture 定时抓帧。
+    // 解决 Oplus 设备上 imageAnalysis 不投递帧的问题。
+    private Handler framePollingHandler;
+    private Runnable framePollingRunnable;
+    private boolean isPolling = false;
+    private static final int FRAME_POLL_INTERVAL_MS = 500;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -217,79 +220,19 @@ public class CameraActivity extends AppCompatActivity {
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build();
 
-        // ImageAnalysis use case for real-time pose detection.
-        // Use the default YUV_420_888 output (universally supported). The previous
-        // RGBA_8888 attempt produced null bitmaps on many devices because vendor
-        // implementations don't actually emit RGBA in that mode.
-        // BLOCK_PRODUCER (vs KEEP_ONLY_LATEST) — some Oplus devices don't deliver
-        // frames at all under KEEP_ONLY_LATEST when the analyzer is on a single
-        // thread executor.
-        imageAnalysis = new ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
-            .build();
-
-        imageAnalysis.setAnalyzer(cameraExecutor, image -> {
-            analyzerInvocationCount.incrementAndGet();
-            // Throttle analysis to avoid too many network requests
-            int now = (int) System.currentTimeMillis();
-            if (now - lastAnalysisTime.get() < ANALYSIS_INTERVAL_MS) {
-                image.close();
-                return;
-            }
-            lastAnalysisTime.set(now);
-
-            try {
-                long t0 = System.currentTimeMillis();
-
-                // 1. ImageProxy → Bitmap（保留一份给最佳帧）
-                Bitmap frameBitmap = imageProxyToBitmap(image);
-                long tBitmap = System.currentTimeMillis() - t0;
-                if (frameBitmap == null) {
-                    setDebugStatus("BITMAP NULL format=" + image.getFormat()
-                        + " " + image.getWidth() + "x" + image.getHeight()
-                        + " bitmap=" + tBitmap + "ms");
-                    image.close();
-                    return;
-                }
-
-                // 2. 同一 bitmap 跑 MediaPipe 检测
-                long tMp = System.currentTimeMillis();
-                List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
-                long tMpMs = System.currentTimeMillis() - tMp;
-                if (keypoints != null && !keypoints.isEmpty()) {
-                    setDebugStatus("OK " + keypoints.size() + " kp  bitmap=" + tBitmap
-                        + "ms mp=" + tMpMs + "ms");
-                    // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
-                    final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
-                    mainHandler.post(() -> {
-                        if (poseOverlayView != null) {
-                            poseOverlayView.updateKeypoints(finalKeypoints);
-                        }
-                    });
-                    // 4. 通知 tracker 来了新帧
-                    bestFrameTracker.onFrame(frameBitmap, keypoints);
-                    // 5. 异步拿实时分数（仅更新分数和身体部位分数）
-                    uploadKeypointsForAnalysis(keypoints);
-                } else {
-                    setDebugStatus("MEDIAPIPE EMPTY bitmap=" + tBitmap + "ms");
-                    frameBitmap.recycle();
-                }
-            } catch (Throwable t) {
-                setDebugStatus("THROWABLE: " + t.getClass().getSimpleName() + ": " + t.getMessage());
-            } finally {
-                image.close();
-            }
-        });
+        // 之前用 ImageAnalysis 走实时检测，但在 Oplus 设备上 ImageAnalysis 跟 ImageCapture
+        // 同时绑定时框架不投递帧（bind OK 但 analyzer 永远不被调用）。改用 imageCapture
+        // 轮询：startCountdown 期间每隔 500ms takePicture 一次，绕过 ImageAnalysis 链路。
+        // 详见 startFramePolling() / processImageProxy()。
 
         try {
             cameraProvider.bindToLifecycle(
                 this,
                 cameraSelector,
                 preview,
-                imageCapture,
-                imageAnalysis
+                imageCapture
             );
-            setDebugStatus("bind OK usecases=4");
+            setDebugStatus("bind OK usecases=2 (preview+imageCapture)");
         } catch (Exception e) {
             setDebugStatus("BIND FAIL: " + e.getClass().getSimpleName() + " " + e.getMessage());
             mainHandler.post(() -> ToastUtil.show(this, "相机启动失败"));
@@ -329,6 +272,11 @@ public class CameraActivity extends AppCompatActivity {
         tvCountdown.setVisibility(View.VISIBLE);
         tvCountdown.setText("3");
 
+        if (!isPhotoMode) {
+            // 录像模式：倒计时期间持续抓帧喂给 bestFrameTracker
+            startFramePolling();
+        }
+
         new android.os.CountDownTimer(3000, 1000) {
             int count = 3;
 
@@ -342,6 +290,7 @@ public class CameraActivity extends AppCompatActivity {
                 if (isPhotoMode) {
                     captureImage();
                 } else {
+                    stopFramePolling();
                     finishVideoRecording();
                 }
             }
@@ -447,6 +396,80 @@ public class CameraActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    // ========== 帧轮询（Oplus 设备 imageAnalysis 兜底） ==========
+
+    private void startFramePolling() {
+        if (isPolling) return;
+        isPolling = true;
+        if (framePollingHandler == null) {
+            framePollingHandler = new Handler(Looper.getMainLooper());
+        }
+        framePollingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isPolling || imageCapture == null) return;
+                imageCapture.takePicture(cameraExecutor, new ImageCapture.OnImageCapturedCallback() {
+                    @Override
+                    public void onCaptureSuccess(@NonNull ImageProxy image) {
+                        processImageProxy(image);
+                    }
+                    @Override
+                    public void onError(@NonNull ImageCaptureException exception) {
+                        // takePicture 偶发失败不阻塞下一轮
+                    }
+                });
+                framePollingHandler.postDelayed(this, FRAME_POLL_INTERVAL_MS);
+            }
+        };
+        framePollingHandler.post(framePollingRunnable);
+    }
+
+    private void stopFramePolling() {
+        isPolling = false;
+        if (framePollingHandler != null && framePollingRunnable != null) {
+            framePollingHandler.removeCallbacks(framePollingRunnable);
+        }
+    }
+
+    private void processImageProxy(ImageProxy image) {
+        analyzerInvocationCount.incrementAndGet();
+        try {
+            long t0 = System.currentTimeMillis();
+
+            Bitmap frameBitmap = imageProxyToBitmap(image);
+            long tBitmap = System.currentTimeMillis() - t0;
+            if (frameBitmap == null) {
+                setDebugStatus("BITMAP NULL format=" + image.getFormat()
+                    + " " + image.getWidth() + "x" + image.getHeight()
+                    + " bitmap=" + tBitmap + "ms");
+                return;
+            }
+
+            long tMp = System.currentTimeMillis();
+            List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
+            long tMpMs = System.currentTimeMillis() - tMp;
+            if (keypoints != null && !keypoints.isEmpty()) {
+                setDebugStatus("OK " + keypoints.size() + " kp  bitmap=" + tBitmap
+                    + "ms mp=" + tMpMs + "ms");
+                final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
+                mainHandler.post(() -> {
+                    if (poseOverlayView != null) {
+                        poseOverlayView.updateKeypoints(finalKeypoints);
+                    }
+                });
+                bestFrameTracker.onFrame(frameBitmap, keypoints);
+                uploadKeypointsForAnalysis(keypoints);
+            } else {
+                setDebugStatus("MEDIAPIPE EMPTY bitmap=" + tBitmap + "ms");
+                frameBitmap.recycle();
+            }
+        } catch (Throwable t) {
+            setDebugStatus("THROWABLE: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        } finally {
+            image.close();
         }
     }
 
