@@ -16,6 +16,7 @@ import com.posegame.app.data.api.ApiService;
 import com.posegame.app.data.api.RetrofitClient;
 import com.posegame.app.data.model.ApiResponse;
 import com.posegame.app.data.model.GameRecordSubmitResponse;
+import com.posegame.app.data.model.UserInfo;
 import com.posegame.app.ui.camera.CameraActivity;
 import com.posegame.app.ui.level.LevelDetailActivity;
 import com.posegame.app.util.SharedPreferencesUtil;
@@ -60,6 +61,7 @@ public class ResultActivity extends AppCompatActivity {
     private int score;
     private boolean isPass;
     private String stickerReward;
+    private String mediaUrl;
     private int headScore;
     private int shouldersScore;
     private int armsScore;
@@ -78,6 +80,7 @@ public class ResultActivity extends AppCompatActivity {
         score = getIntent().getIntExtra("score", 0);
         isPass = getIntent().getBooleanExtra("is_pass", false);
         stickerReward = getIntent().getStringExtra("sticker_reward");
+        mediaUrl = getIntent().getStringExtra("media_url");  // 录像模式才有，拍照模式为 null
         headScore = getIntent().getIntExtra("match_details_head", 0);
         shouldersScore = getIntent().getIntExtra("match_details_shoulders", 0);
         armsScore = getIntent().getIntExtra("match_details_arms", 0);
@@ -170,15 +173,41 @@ public class ResultActivity extends AppCompatActivity {
         String authHeader = prefsUtil.getAuthHeader();
         if (authHeader == null) return;
 
-        apiService.submitRecord(authHeader, levelId, score, isPass).enqueue(new Callback<ApiResponse<GameRecordSubmitResponse>>() {
+        apiService.submitRecord(authHeader, levelId, score, isPass, mediaUrl).enqueue(new Callback<ApiResponse<GameRecordSubmitResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<GameRecordSubmitResponse>> call, Response<ApiResponse<GameRecordSubmitResponse>> response) {
-                // Silently handle - already showing result to user
+                // Refresh user data after successful record submission
+                refreshUserData();
             }
 
             @Override
             public void onFailure(Call<ApiResponse<GameRecordSubmitResponse>> call, Throwable t) {
                 // Silently fail - user already sees the result
+            }
+        });
+    }
+
+    private void refreshUserData() {
+        String authHeader = prefsUtil.getAuthHeader();
+        if (authHeader == null) return;
+
+        apiService.getUserInfo(authHeader).enqueue(new Callback<ApiResponse<UserInfo>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<UserInfo>> call, Response<ApiResponse<UserInfo>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse<UserInfo> apiResponse = response.body();
+                    if (apiResponse.isSuccess() && apiResponse.getData() != null) {
+                        UserInfo userInfo = apiResponse.getData();
+                        // Update local storage with latest user data
+                        prefsUtil.saveTotalScore(userInfo.getTotalScore());
+                        prefsUtil.saveLevelUnlock(userInfo.getLevelUnlock());
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<UserInfo>> call, Throwable t) {
+                // Silently fail
             }
         });
     }
