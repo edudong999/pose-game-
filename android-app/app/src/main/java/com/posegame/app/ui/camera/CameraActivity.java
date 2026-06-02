@@ -93,6 +93,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private ExecutorService cameraExecutor;
     private Handler mainHandler;
+    private java.util.concurrent.atomic.AtomicLong lastProcessLogMs = new java.util.concurrent.atomic.AtomicLong(0);
 
     // CameraX
     private ProcessCameraProvider cameraProvider;
@@ -119,7 +120,7 @@ public class CameraActivity extends AppCompatActivity {
         levelId = getIntent().getIntExtra("level_id", 1);
         levelName = getIntent().getStringExtra("level_name");
 
-        cameraExecutor = Executors.newSingleThreadExecutor();
+        cameraExecutor = Executors.newCachedThreadPool();
         mainHandler = new Handler(Looper.getMainLooper());
 
         initViews();
@@ -237,35 +238,47 @@ public class CameraActivity extends AppCompatActivity {
             }
             lastAnalysisTime.set(now);
 
-            // 1. ImageProxy → Bitmap（保留一份给最佳帧）
-            Bitmap frameBitmap = imageProxyToBitmap(image);
-            if (frameBitmap == null) {
-                setDebugStatus("BITMAP NULL format=" + image.getFormat()
-                    + " " + image.getWidth() + "x" + image.getHeight());
-                image.close();
-                return;
-            }
+            try {
+                long t0 = System.currentTimeMillis();
 
-            // 2. 同一 bitmap 跑 MediaPipe 检测
-            List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
-            if (keypoints != null && !keypoints.isEmpty()) {
-                setDebugStatus("OK " + keypoints.size() + " kp");
-                // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
-                final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
-                mainHandler.post(() -> {
-                    if (poseOverlayView != null) {
-                        poseOverlayView.updateKeypoints(finalKeypoints);
-                    }
-                });
-                // 4. 通知 tracker 来了新帧
-                bestFrameTracker.onFrame(frameBitmap, keypoints);
-                // 5. 异步拿实时分数（仅更新分数和身体部位分数）
-                uploadKeypointsForAnalysis(keypoints);
-            } else {
-                setDebugStatus("MEDIAPIPE EMPTY");
-                frameBitmap.recycle();
+                // 1. ImageProxy → Bitmap（保留一份给最佳帧）
+                Bitmap frameBitmap = imageProxyToBitmap(image);
+                long tBitmap = System.currentTimeMillis() - t0;
+                if (frameBitmap == null) {
+                    setDebugStatus("BITMAP NULL format=" + image.getFormat()
+                        + " " + image.getWidth() + "x" + image.getHeight()
+                        + " bitmap=" + tBitmap + "ms");
+                    image.close();
+                    return;
+                }
+
+                // 2. 同一 bitmap 跑 MediaPipe 检测
+                long tMp = System.currentTimeMillis();
+                List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
+                long tMpMs = System.currentTimeMillis() - tMp;
+                if (keypoints != null && !keypoints.isEmpty()) {
+                    setDebugStatus("OK " + keypoints.size() + " kp  bitmap=" + tBitmap
+                        + "ms mp=" + tMpMs + "ms");
+                    // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
+                    final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
+                    mainHandler.post(() -> {
+                        if (poseOverlayView != null) {
+                            poseOverlayView.updateKeypoints(finalKeypoints);
+                        }
+                    });
+                    // 4. 通知 tracker 来了新帧
+                    bestFrameTracker.onFrame(frameBitmap, keypoints);
+                    // 5. 异步拿实时分数（仅更新分数和身体部位分数）
+                    uploadKeypointsForAnalysis(keypoints);
+                } else {
+                    setDebugStatus("MEDIAPIPE EMPTY bitmap=" + tBitmap + "ms");
+                    frameBitmap.recycle();
+                }
+            } catch (Throwable t) {
+                setDebugStatus("THROWABLE: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+            } finally {
+                image.close();
             }
-            image.close();
         });
 
         try {
@@ -276,8 +289,9 @@ public class CameraActivity extends AppCompatActivity {
                 imageCapture,
                 imageAnalysis
             );
+            setDebugStatus("bind OK usecases=4");
         } catch (Exception e) {
-            e.printStackTrace();
+            setDebugStatus("BIND FAIL: " + e.getClass().getSimpleName() + " " + e.getMessage());
             mainHandler.post(() -> ToastUtil.show(this, "相机启动失败"));
         }
     }
