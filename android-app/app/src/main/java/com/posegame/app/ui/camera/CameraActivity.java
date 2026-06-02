@@ -207,12 +207,12 @@ public class CameraActivity extends AppCompatActivity {
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build();
 
-        // ImageAnalysis use case for real-time pose detection
-        // Use RGBA_8888 so we can copyPixelsFromBuffer directly (YUV default would
-        // require manual YUV→RGB conversion, easy to get wrong)
+        // ImageAnalysis use case for real-time pose detection.
+        // Use the default YUV_420_888 output (universally supported). The previous
+        // RGBA_8888 attempt produced null bitmaps on many devices because vendor
+        // implementations don't actually emit RGBA in that mode.
         imageAnalysis = new ImageAnalysis.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build();
 
@@ -357,8 +357,8 @@ public class CameraActivity extends AppCompatActivity {
 
     private Bitmap imageProxyToBitmap(ImageProxy image) {
         try {
-            Bitmap original;
             int format = image.getFormat();
+            Bitmap original;
             if (format == android.graphics.ImageFormat.JPEG) {
                 // Photo capture path: plane[0] holds the encoded JPEG bytes
                 ByteBuffer buffer = image.getPlanes()[0].getBuffer();
@@ -368,29 +368,34 @@ public class CameraActivity extends AppCompatActivity {
                 options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888;
                 original = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
             } else {
-                // imageAnalysis with OUTPUT_IMAGE_FORMAT_RGBA_8888: plane[0] holds raw ARGB pixels
-                ImageProxy.PlaneProxy plane = image.getPlanes()[0];
-                ByteBuffer buffer = plane.getBuffer();
-                int width = image.getWidth();
-                int height = image.getHeight();
-                int pixelStride = plane.getPixelStride();
-                int rowStride = plane.getRowStride();
-                int rowPadding = rowStride - pixelStride * width;
+                // imageAnalysis default: YUV_420_888 (3 planes). Pack into NV21, then
+                // let android.graphics.YuvImage do the YUV→JPEG conversion.
+                ImageProxy.PlaneProxy yPlane = image.getPlanes()[0];
+                ImageProxy.PlaneProxy uPlane = image.getPlanes()[1];
+                ImageProxy.PlaneProxy vPlane = image.getPlanes()[2];
 
-                if (rowPadding == 0) {
-                    original = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-                    original.copyPixelsFromBuffer(buffer);
-                } else {
-                    // Some devices pad each row; allocate padded, copy, then crop
-                    Bitmap padded = Bitmap.createBitmap(
-                        width + rowPadding / pixelStride,
-                        height,
-                        Bitmap.Config.ARGB_8888
-                    );
-                    padded.copyPixelsFromBuffer(buffer);
-                    original = Bitmap.createBitmap(padded, 0, 0, width, height);
-                    padded.recycle();
-                }
+                ByteBuffer yBuf = yPlane.getBuffer();
+                ByteBuffer uBuf = uPlane.getBuffer();
+                ByteBuffer vBuf = vPlane.getBuffer();
+                int ySize = yBuf.remaining();
+                int uSize = uBuf.remaining();
+                int vSize = vBuf.remaining();
+
+                // NV21: Y plane then VU interleaved (YuvImage's expected layout)
+                byte[] nv21 = new byte[ySize + uSize + vSize];
+                yBuf.get(nv21, 0, ySize);
+                vBuf.get(nv21, ySize, vSize);
+                uBuf.get(nv21, ySize + vSize, uSize);
+
+                android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
+                    nv21, android.graphics.ImageFormat.NV21,
+                    image.getWidth(), image.getHeight(), null);
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                yuvImage.compressToJpeg(
+                    new android.graphics.Rect(0, 0, image.getWidth(), image.getHeight()),
+                    95, out);
+                byte[] jpegBytes = out.toByteArray();
+                original = android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
             }
 
             if (original == null) return null;
