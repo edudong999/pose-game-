@@ -232,9 +232,16 @@ public class CameraActivity extends AppCompatActivity {
             // 2. 同一 bitmap 跑 MediaPipe 检测
             List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
             if (keypoints != null && !keypoints.isEmpty()) {
-                // 3. 通知 tracker 来了新帧
+                // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
+                final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
+                mainHandler.post(() -> {
+                    if (poseOverlayView != null) {
+                        poseOverlayView.updateKeypoints(finalKeypoints);
+                    }
+                });
+                // 4. 通知 tracker 来了新帧
                 bestFrameTracker.onFrame(frameBitmap, keypoints);
-                // 4. 异步拿实时分数
+                // 5. 异步拿实时分数（仅更新分数和身体部位分数）
                 uploadKeypointsForAnalysis(keypoints);
             } else {
                 frameBitmap.recycle();
@@ -457,10 +464,10 @@ public class CameraActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
                     RealtimePoseResult result = response.body().getData();
                     currentRealtimeScore = result.getScore();
-                    // Update overlay with real-time score, keypoints, and body part scores
+                    // Update overlay with real-time score and body part scores
+                    // (keypoints already updated locally in the analyzer; avoid double-invalidate)
                     mainHandler.post(() -> {
-                        if (poseOverlayView != null && keypoints != null) {
-                            poseOverlayView.updateKeypoints(keypoints);
+                        if (poseOverlayView != null) {
                             poseOverlayView.updateScore(currentRealtimeScore);
                             poseOverlayView.updateBodyScores(
                                 result.getHeadScore(),
