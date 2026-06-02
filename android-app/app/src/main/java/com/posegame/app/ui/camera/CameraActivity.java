@@ -165,6 +165,11 @@ public class CameraActivity extends AppCompatActivity {
         rgMode.setOnCheckedChangeListener((group, checkedId) -> {
             isPhotoMode = checkedId == R.id.rbPhoto;
             if (bestFrameTracker != null) bestFrameTracker.reset();
+            if (isPhotoMode) {
+                stopFramePolling();
+            } else {
+                startFramePolling();
+            }
         });
         btnCapture.setOnClickListener(v -> startCountdown());
     }
@@ -272,10 +277,8 @@ public class CameraActivity extends AppCompatActivity {
         tvCountdown.setVisibility(View.VISIBLE);
         tvCountdown.setText("3");
 
-        if (!isPhotoMode) {
-            // 录像模式：倒计时期间持续抓帧喂给 bestFrameTracker
-            startFramePolling();
-        }
+        // 录像模式下轮询已经在切换模式时启动；拍照模式不需要轮询。
+        // 倒计时期间继续抓帧，结束后用 bestFrameTracker 取最佳帧。
 
         new android.os.CountDownTimer(3000, 1000) {
             int count = 3;
@@ -290,7 +293,7 @@ public class CameraActivity extends AppCompatActivity {
                 if (isPhotoMode) {
                     captureImage();
                 } else {
-                    stopFramePolling();
+                    // 录像模式：轮询继续运行，loading 阶段用户还能看到骨架
                     finishVideoRecording();
                 }
             }
@@ -726,6 +729,7 @@ public class CameraActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        stopFramePolling();
         if (bestFrameTracker != null) bestFrameTracker.release();
         cameraExecutor.shutdown();
     }
