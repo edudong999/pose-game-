@@ -8,6 +8,7 @@ import android.graphics.Matrix;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -66,6 +67,8 @@ import retrofit2.Response;
  */
 public class CameraActivity extends AppCompatActivity {
 
+    private static final String TAG = "PoseCamera";
+
     private static final int REQUEST_CODE_PERMISSIONS = 10;
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
 
@@ -107,6 +110,8 @@ public class CameraActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+
+        Log.d(TAG, "onCreate: levelId=" + levelId);
 
         apiService = RetrofitClient.getInstance().getApiService();
         levelId = getIntent().getIntExtra("level_id", 1);
@@ -187,6 +192,7 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     private void bindCameraUseCases() {
+        Log.d(TAG, "bindCameraUseCases: lensFront=" + lensFacingFront);
         // Unbind all use cases before rebinding
         cameraProvider.unbindAll();
 
@@ -228,6 +234,8 @@ public class CameraActivity extends AppCompatActivity {
             // 1. ImageProxy → Bitmap（保留一份给最佳帧）
             Bitmap frameBitmap = imageProxyToBitmap(image);
             if (frameBitmap == null) {
+                Log.w(TAG, "analyzer: imageProxyToBitmap returned null, format=" + image.getFormat()
+                    + " size=" + image.getWidth() + "x" + image.getHeight());
                 image.close();
                 return;
             }
@@ -235,6 +243,7 @@ public class CameraActivity extends AppCompatActivity {
             // 2. 同一 bitmap 跑 MediaPipe 检测
             List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
             if (keypoints != null && !keypoints.isEmpty()) {
+                Log.d(TAG, "analyzer: detected " + keypoints.size() + " keypoints");
                 // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
                 final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
                 mainHandler.post(() -> {
@@ -247,6 +256,7 @@ public class CameraActivity extends AppCompatActivity {
                 // 5. 异步拿实时分数（仅更新分数和身体部位分数）
                 uploadKeypointsForAnalysis(keypoints);
             } else {
+                Log.w(TAG, "analyzer: no keypoints from MediaPipe");
                 frameBitmap.recycle();
             }
             image.close();
@@ -542,6 +552,11 @@ public class CameraActivity extends AppCompatActivity {
             bestFrame = bestFrameTracker.getFallbackFrame();
             bestKeypoints = bestFrameTracker.getFallbackKeypoints();
         }
+
+        Log.d(TAG, "finishVideoRecording: bestFrame=" + (bestFrame != null)
+            + " bestKeypoints=" + (bestKeypoints != null ? bestKeypoints.size() : "null")
+            + " bestScore=" + bestFrameTracker.getBestScore()
+            + " hasLatest=" + (bestFrameTracker.getFallbackFrame() != null));
 
         if (bestFrame == null || bestKeypoints == null) {
             mainHandler.post(() -> {
