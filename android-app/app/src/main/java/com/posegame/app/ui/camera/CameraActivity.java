@@ -447,6 +447,12 @@ public class CameraActivity extends AppCompatActivity {
     private void processImageProxy(ImageProxy image) {
         analyzerInvocationCount.incrementAndGet();
         try {
+            // 模式切换/结束时 stopFramePolling 只取消未触发的回调，正在飞的
+            // takePicture 还会回来。这里再判一次，避免把骨架写回已经清掉的 overlay。
+            if (!isPolling) {
+                return;
+            }
+
             long t0 = System.currentTimeMillis();
 
             Bitmap frameBitmap = imageProxyToBitmap(image);
@@ -560,21 +566,28 @@ public class CameraActivity extends AppCompatActivity {
         apiService.analyzeRealtimePose(request, levelId).enqueue(new Callback<ApiResponse<RealtimePoseResult>>() {
             @Override
             public void onResponse(Call<ApiResponse<RealtimePoseResult>> call, Response<ApiResponse<RealtimePoseResult>> response) {
+                // 模式已切走（清空 overlay 后）这一帧响应就丢，否则会把 score/bodyScore
+                // 写回已经 clear() 过的 overlay，导致右上角"X分"和小标签不消失。
+                if (!isPolling) {
+                    return;
+                }
                 if (response.isSuccessful() && response.body() != null && response.body().getData() != null) {
                     RealtimePoseResult result = response.body().getData();
                     currentRealtimeScore = result.getScore();
                     // Update overlay with real-time score and body part scores
                     // (keypoints already updated locally in the analyzer; avoid double-invalidate)
                     mainHandler.post(() -> {
-                        if (poseOverlayView != null) {
-                            poseOverlayView.updateScore(currentRealtimeScore);
-                            poseOverlayView.updateBodyScores(
-                                result.getHeadScore(),
-                                result.getShoulderScore(),
-                                result.getArmScore(),
-                                result.getBodyScore()
-                            );
+                        // mainHandler.post 排队期间用户可能又切了模式，再判一次
+                        if (!isPolling || poseOverlayView == null) {
+                            return;
                         }
+                        poseOverlayView.updateScore(currentRealtimeScore);
+                        poseOverlayView.updateBodyScores(
+                            result.getHeadScore(),
+                            result.getShoulderScore(),
+                            result.getArmScore(),
+                            result.getBodyScore()
+                        );
                         // 录像模式：把分数喂给 BestFrameTracker
                         if (!isPhotoMode) {
                             bestFrameTracker.onScore(currentRealtimeScore);
