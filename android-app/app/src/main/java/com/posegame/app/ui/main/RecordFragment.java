@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.posegame.app.PoseApp;
 import com.posegame.app.R;
 import com.posegame.app.data.api.ApiService;
@@ -130,6 +131,7 @@ class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.RecordViewHolder>
         private final TextView tvScore;
         private final TextView tvDate;
         private final TextView tvStatus;
+        private final android.widget.ImageView ivThumbnail;
 
         RecordViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -137,6 +139,7 @@ class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.RecordViewHolder>
             tvScore = itemView.findViewById(R.id.tvScore);
             tvDate = itemView.findViewById(R.id.tvDate);
             tvStatus = itemView.findViewById(R.id.tvStatus);
+            ivThumbnail = itemView.findViewById(R.id.ivThumbnail);
         }
 
         void bind(GameRecord record) {
@@ -150,6 +153,21 @@ class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.RecordViewHolder>
             } else {
                 tvStatus.setText("未通过");
                 tvStatus.setTextColor(0xFFF44336);
+            }
+
+            // 有截图就显示缩略图，没有就显示奖杯图标
+            String mediaUrl = record.getMediaUrl();
+            if (mediaUrl != null && !mediaUrl.isEmpty()) {
+                String fullUrl = mediaUrl.startsWith("http")
+                    ? mediaUrl
+                    : "http://10.78.207.58:5000" + mediaUrl;
+                Glide.with(itemView.getContext())
+                    .load(fullUrl)
+                    .placeholder(R.drawable.ic_trophy)
+                    .into(ivThumbnail);
+            } else {
+                Glide.with(itemView.getContext()).clear(ivThumbnail);
+                ivThumbnail.setImageResource(R.drawable.ic_trophy);
             }
         }
     }
