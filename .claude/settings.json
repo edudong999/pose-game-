@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Pushing to remote...",
+            "command": "jq -r '.tool_input.command // \"\"' | grep -qE '^[[:space:]]*git[[:space:]]+commit\\b' || exit 0; git push -u origin \"$(git symbolic-ref --short HEAD 2>/dev/null)\" 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}
