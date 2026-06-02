@@ -11,8 +11,11 @@ import com.posegame.app.data.model.PoseResult;
 import com.posegame.app.data.model.PoseType;
 import com.posegame.app.data.model.PoseTypeListResponse;
 import com.posegame.app.data.model.RecordListResponse;
+import com.posegame.app.data.model.RealtimePoseRequest;
+import com.posegame.app.data.model.RealtimePoseResult;
 import com.posegame.app.data.model.Sticker;
 import com.posegame.app.data.model.StickerListResponse;
+import com.posegame.app.data.model.UploadImageResponse;
 import com.posegame.app.data.model.UserInfo;
 
 import java.util.List;
@@ -58,10 +61,9 @@ public interface ApiService {
 
     // ========== Pose Recognition ==========
 
-    @Multipart
     @POST("pose/recognize")
-    Call<ApiResponse<PoseResult>> recognizePose(
-            @Part MultipartBody.Part image,
+    Call<ApiResponse<PoseResult>> recognizePoseKeypoints(
+            @Body RealtimePoseRequest keypoints,
             @Query("level_id") int levelId
     );
 
@@ -72,6 +74,18 @@ public interface ApiService {
             @Query("level_id") int levelId
     );
 
+    @POST("pose/analyze/realtime")
+    Call<ApiResponse<RealtimePoseResult>> analyzeRealtimePose(
+            @Body RealtimePoseRequest request,
+            @Query("level_id") int levelId
+    );
+
+    // ========== Media Upload ==========
+
+    @Multipart
+    @POST("game/record/media")
+    Call<ApiResponse<UploadImageResponse>> uploadImage(@Part MultipartBody.Part image);
+
     // ========== Game Record ==========
 
     @POST("game/record")
@@ -79,7 +93,8 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Query("levelId") int levelId,
             @Query("score") int score,
-            @Query("isPass") boolean isPass
+            @Query("isPass") boolean isPass,
+            @Query("mediaUrl") String mediaUrl
     );
 
     @GET("game/records")
