@@ -84,7 +84,9 @@ public interface ApiService {
 
     @Multipart
     @POST("game/record/media")
-    Call<ApiResponse<UploadImageResponse>> uploadImage(@Part MultipartBody.Part image);
+    Call<ApiResponse<UploadImageResponse>> uploadImage(
+            @Header("Authorization") String token,
+            @Part MultipartBody.Part image);
 
     // ========== Game Record ==========
 

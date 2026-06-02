@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.posegame.app.R;
+import com.posegame.app.PoseApp;
 import com.posegame.app.data.api.ApiService;
 import com.posegame.app.data.api.RetrofitClient;
 import com.posegame.app.data.model.ApiResponse;
@@ -38,6 +39,7 @@ import com.posegame.app.data.model.RealtimePoseRequest;
 import com.posegame.app.data.model.RealtimePoseResult;
 import com.posegame.app.data.model.UploadImageResponse;
 import com.posegame.app.ui.result.ResultActivity;
+import com.posegame.app.util.SharedPreferencesUtil;
 import com.posegame.app.util.ToastUtil;
 import com.posegame.app.data.model.Level;
 
@@ -84,6 +86,7 @@ public class CameraActivity extends AppCompatActivity {
 
     private ApiService apiService;
     private Level currentLevel;
+    private SharedPreferencesUtil prefsUtil;
 
     private int levelId;
     private String levelName;
@@ -120,6 +123,7 @@ public class CameraActivity extends AppCompatActivity {
         setDebugStatus("onCreate levelId=" + levelId);
 
         apiService = RetrofitClient.getInstance().getApiService();
+        prefsUtil = PoseApp.getInstance().getPrefsUtil();
         levelId = getIntent().getIntExtra("level_id", 1);
         levelName = getIntent().getStringExtra("level_name");
 
@@ -293,7 +297,8 @@ public class CameraActivity extends AppCompatActivity {
                 if (isPhotoMode) {
                     captureImage();
                 } else {
-                    // 录像模式：轮询继续运行，loading 阶段用户还能看到骨架
+                    // 录像模式：先停轮询避免上传过程中 bestBitmap 被新分数的 onScore 回收
+                    stopFramePolling();
                     finishVideoRecording();
                 }
             }
@@ -639,7 +644,10 @@ public class CameraActivity extends AppCompatActivity {
         RequestBody reqFile = RequestBody.create(MediaType.parse("image/jpeg"), tempFile);
         MultipartBody.Part body = MultipartBody.Part.createFormData("image", tempFile.getName(), reqFile);
 
-        apiService.uploadImage(body).enqueue(new Callback<ApiResponse<UploadImageResponse>>() {
+        // 后端 /game/record/media 需要 Authorization header，否则返回 401
+        String authHeader = prefsUtil != null ? prefsUtil.getAuthHeader() : null;
+
+        apiService.uploadImage(authHeader, body).enqueue(new Callback<ApiResponse<UploadImageResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<UploadImageResponse>> call,
                                    Response<ApiResponse<UploadImageResponse>> response) {
