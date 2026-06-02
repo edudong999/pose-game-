@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, File, HTTPException, Header, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import jwt
+import os
+import uuid
 
 from ..database import get_db
 from ..models import User, Level, GameRecord
@@ -23,11 +25,38 @@ def get_user_id(authorization: str = None) -> int:
         raise HTTPException(status_code=401, detail="token无效")
 
 
+@router.post("/record/media")
+async def upload_record_media(
+    image: UploadFile = File(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """上传闯关截图，返回可访问的 URL"""
+    get_user_id(authorization)  # 鉴权，未登录直接 401
+
+    save_dir = "static/records"
+    os.makedirs(save_dir, exist_ok=True)
+    ext = os.path.splitext(image.filename or "")[1] or ".jpg"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    save_path = os.path.join(save_dir, filename)
+
+    contents = await image.read()
+    with open(save_path, "wb") as f:
+        f.write(contents)
+
+    return {
+        "code": 200,
+        "msg": "上传成功",
+        "data": {"imageUrl": f"/static/records/{filename}"}
+    }
+
+
 @router.post("/record", response_model=dict)
 def submit_record(
     levelId: int,
     score: int,
     isPass: bool,
+    mediaUrl: str = None,
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -41,7 +70,8 @@ def submit_record(
         user_id=user_id,
         level_id=levelId,
         score=score,
-        is_pass=isPass
+        is_pass=isPass,
+        media_url=mediaUrl
     )
     db.add(db_record)
 
@@ -98,6 +128,7 @@ def get_records(
             "levelName": level.name if level else "未知关卡",
             "score": record.score,
             "isPass": record.is_pass,
+            "mediaUrl": record.media_url,
             "createdAt": record.created_at.isoformat() if record.created_at else None
         })
 
