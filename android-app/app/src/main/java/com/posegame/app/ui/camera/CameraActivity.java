@@ -629,7 +629,17 @@ public class CameraActivity extends AppCompatActivity {
 
         final Bitmap finalFrame = bestFrame;
         final List<MediaPipePoseDetector.Keypoint> finalKeypoints = bestKeypoints;
-        uploadFrameImage(finalFrame, imageUrl -> uploadKeypointsForFinalScore(finalKeypoints, imageUrl));
+
+        // 关键点直接调评分接口，结算页先出来。截图上传改成后台尝试，
+        // 成功就把 imageUrl 补到记录里，失败也不阻塞结果页。
+        uploadKeypointsForFinalScore(finalKeypoints, null);
+        uploadFrameImageAsync(finalFrame);
+    }
+
+    private void uploadFrameImageAsync(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) return;
+        // 复用现有上传逻辑，但忽略结果（imageUrl 拿不到也不影响）
+        uploadFrameImage(bitmap, imageUrl -> { /* best-effort，不回调到评分 */ });
     }
 
     private void uploadFrameImage(Bitmap bitmap, OnImageUploadedListener listener) {
