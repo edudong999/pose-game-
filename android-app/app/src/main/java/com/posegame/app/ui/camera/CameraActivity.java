@@ -171,6 +171,8 @@ public class CameraActivity extends AppCompatActivity {
             if (bestFrameTracker != null) bestFrameTracker.reset();
             if (isPhotoMode) {
                 stopFramePolling();
+                // 切回拍照模式时清掉录像留下的骨架/分数显示
+                if (poseOverlayView != null) poseOverlayView.clear();
             } else {
                 startFramePolling();
             }
