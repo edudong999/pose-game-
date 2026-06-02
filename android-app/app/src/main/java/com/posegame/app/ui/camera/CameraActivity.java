@@ -103,6 +103,7 @@ public class CameraActivity extends AppCompatActivity {
     // Pose detection
     private MediaPipePoseDetector poseDetector;
     private AtomicInteger lastAnalysisTime = new AtomicInteger(0);
+    private AtomicInteger analyzerInvocationCount = new AtomicInteger(0);
     private static final int ANALYSIS_INTERVAL_MS = 500; // Throttle to 2 fps for analysis
     private int currentRealtimeScore = 0;
     private BestFrameTracker bestFrameTracker;
@@ -219,15 +220,20 @@ public class CameraActivity extends AppCompatActivity {
         // Use the default YUV_420_888 output (universally supported). The previous
         // RGBA_8888 attempt produced null bitmaps on many devices because vendor
         // implementations don't actually emit RGBA in that mode.
+        // BLOCK_PRODUCER (vs KEEP_ONLY_LATEST) — some Oplus devices don't deliver
+        // frames at all under KEEP_ONLY_LATEST when the analyzer is on a single
+        // thread executor.
         imageAnalysis = new ImageAnalysis.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
             .build();
 
         imageAnalysis.setAnalyzer(cameraExecutor, image -> {
+            int n = analyzerInvocationCount.incrementAndGet();
             // Throttle analysis to avoid too many network requests
             int now = (int) System.currentTimeMillis();
-            if (now - lastAnalysisTime.get() < ANALYSIS_INTERVAL_MS) {
+            int sinceLast = now - lastAnalysisTime.get();
+            setDebugStatus("ANALYZER #" + n + " dt=" + sinceLast + "ms");
+            if (sinceLast < ANALYSIS_INTERVAL_MS) {
                 image.close();
                 return;
             }
