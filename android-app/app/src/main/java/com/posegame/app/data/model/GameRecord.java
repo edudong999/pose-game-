@@ -22,6 +22,9 @@ public class GameRecord {
     @SerializedName("isPass")
     private boolean isPass;
 
+    @SerializedName("mediaUrl")
+    private String mediaUrl;
+
     @SerializedName("createdAt")
     private String createdAt;
 
@@ -63,6 +66,14 @@ public class GameRecord {
 
     public void setPass(boolean pass) {
         isPass = pass;
+    }
+
+    public String getMediaUrl() {
+        return mediaUrl;
+    }
+
+    public void setMediaUrl(String mediaUrl) {
+        this.mediaUrl = mediaUrl;
     }
 
     public String getCreatedAt() {
