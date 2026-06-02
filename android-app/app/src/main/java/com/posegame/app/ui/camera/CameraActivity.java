@@ -81,6 +81,7 @@ public class CameraActivity extends AppCompatActivity {
     private RadioGroup rgMode;
     private FrameLayout loadingOverlay;
     private PoseOverlayView poseOverlayView;
+    private TextView tvDebugStatus;
 
     private ApiService apiService;
     private Level currentLevel;
@@ -111,7 +112,7 @@ public class CameraActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
 
-        Log.d(TAG, "onCreate: levelId=" + levelId);
+        setDebugStatus("onCreate levelId=" + levelId);
 
         apiService = RetrofitClient.getInstance().getApiService();
         levelId = getIntent().getIntExtra("level_id", 1);
@@ -141,6 +142,7 @@ public class CameraActivity extends AppCompatActivity {
         rgMode = findViewById(R.id.rgMode);
         loadingOverlay = findViewById(R.id.loadingOverlay);
         poseOverlayView = findViewById(R.id.poseOverlayView);
+        tvDebugStatus = findViewById(R.id.tvDebugStatus);
 
         tvLevelName.setText(levelName != null ? levelName : "关卡" + levelId);
 
@@ -192,7 +194,7 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     private void bindCameraUseCases() {
-        Log.d(TAG, "bindCameraUseCases: lensFront=" + lensFacingFront);
+        setDebugStatus("bindCamera lensFront=" + lensFacingFront);
         // Unbind all use cases before rebinding
         cameraProvider.unbindAll();
 
@@ -234,8 +236,8 @@ public class CameraActivity extends AppCompatActivity {
             // 1. ImageProxy → Bitmap（保留一份给最佳帧）
             Bitmap frameBitmap = imageProxyToBitmap(image);
             if (frameBitmap == null) {
-                Log.w(TAG, "analyzer: imageProxyToBitmap returned null, format=" + image.getFormat()
-                    + " size=" + image.getWidth() + "x" + image.getHeight());
+                setDebugStatus("BITMAP NULL format=" + image.getFormat()
+                    + " " + image.getWidth() + "x" + image.getHeight());
                 image.close();
                 return;
             }
@@ -243,7 +245,7 @@ public class CameraActivity extends AppCompatActivity {
             // 2. 同一 bitmap 跑 MediaPipe 检测
             List<MediaPipePoseDetector.Keypoint> keypoints = poseDetector.detectFromBitmap(frameBitmap);
             if (keypoints != null && !keypoints.isEmpty()) {
-                Log.d(TAG, "analyzer: detected " + keypoints.size() + " keypoints");
+                setDebugStatus("OK " + keypoints.size() + " kp");
                 // 3. 立即在主线程上更新本地姿态节点（不依赖网络）
                 final List<MediaPipePoseDetector.Keypoint> finalKeypoints = keypoints;
                 mainHandler.post(() -> {
@@ -256,7 +258,7 @@ public class CameraActivity extends AppCompatActivity {
                 // 5. 异步拿实时分数（仅更新分数和身体部位分数）
                 uploadKeypointsForAnalysis(keypoints);
             } else {
-                Log.w(TAG, "analyzer: no keypoints from MediaPipe");
+                setDebugStatus("MEDIAPIPE EMPTY");
                 frameBitmap.recycle();
             }
             image.close();
@@ -541,6 +543,15 @@ public class CameraActivity extends AppCompatActivity {
         runOnUiThread(() -> loadingOverlay.setVisibility(show ? View.VISIBLE : View.GONE));
     }
 
+    private void setDebugStatus(String msg) {
+        Log.e(TAG, msg);
+        runOnUiThread(() -> {
+            if (tvDebugStatus != null) {
+                tvDebugStatus.setText("DEBUG: " + msg);
+            }
+        });
+    }
+
     private void finishVideoRecording() {
         showLoading(true);
 
@@ -553,10 +564,10 @@ public class CameraActivity extends AppCompatActivity {
             bestKeypoints = bestFrameTracker.getFallbackKeypoints();
         }
 
-        Log.d(TAG, "finishVideoRecording: bestFrame=" + (bestFrame != null)
-            + " bestKeypoints=" + (bestKeypoints != null ? bestKeypoints.size() : "null")
-            + " bestScore=" + bestFrameTracker.getBestScore()
-            + " hasLatest=" + (bestFrameTracker.getFallbackFrame() != null));
+        setDebugStatus("FINISH frame=" + (bestFrame != null)
+            + " kp=" + (bestKeypoints != null ? bestKeypoints.size() : "null")
+            + " score=" + bestFrameTracker.getBestScore()
+            + " latest=" + (bestFrameTracker.getFallbackFrame() != null));
 
         if (bestFrame == null || bestKeypoints == null) {
             mainHandler.post(() -> {
