@@ -208,8 +208,11 @@ public class CameraActivity extends AppCompatActivity {
             .build();
 
         // ImageAnalysis use case for real-time pose detection
+        // Use RGBA_8888 so we can copyPixelsFromBuffer directly (YUV default would
+        // require manual YUV→RGB conversion, easy to get wrong)
         imageAnalysis = new ImageAnalysis.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build();
 
@@ -354,13 +357,41 @@ public class CameraActivity extends AppCompatActivity {
 
     private Bitmap imageProxyToBitmap(ImageProxy image) {
         try {
-            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
+            Bitmap original;
+            int format = image.getFormat();
+            if (format == android.graphics.ImageFormat.JPEG) {
+                // Photo capture path: plane[0] holds the encoded JPEG bytes
+                ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+                options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888;
+                original = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+            } else {
+                // imageAnalysis with OUTPUT_IMAGE_FORMAT_RGBA_8888: plane[0] holds raw ARGB pixels
+                ImageProxy.PlaneProxy plane = image.getPlanes()[0];
+                ByteBuffer buffer = plane.getBuffer();
+                int width = image.getWidth();
+                int height = image.getHeight();
+                int pixelStride = plane.getPixelStride();
+                int rowStride = plane.getRowStride();
+                int rowPadding = rowStride - pixelStride * width;
 
-            android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
-            options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888;
-            Bitmap original = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+                if (rowPadding == 0) {
+                    original = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                    original.copyPixelsFromBuffer(buffer);
+                } else {
+                    // Some devices pad each row; allocate padded, copy, then crop
+                    Bitmap padded = Bitmap.createBitmap(
+                        width + rowPadding / pixelStride,
+                        height,
+                        Bitmap.Config.ARGB_8888
+                    );
+                    padded.copyPixelsFromBuffer(buffer);
+                    original = Bitmap.createBitmap(padded, 0, 0, width, height);
+                    padded.recycle();
+                }
+            }
 
             if (original == null) return null;
 
