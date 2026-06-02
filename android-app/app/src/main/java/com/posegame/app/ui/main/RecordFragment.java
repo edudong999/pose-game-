@@ -1,5 +1,6 @@
 package com.posegame.app.ui.main;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,6 +22,7 @@ import com.posegame.app.data.api.RetrofitClient;
 import com.posegame.app.data.model.ApiResponse;
 import com.posegame.app.data.model.GameRecord;
 import com.posegame.app.data.model.RecordListResponse;
+import com.posegame.app.ui.record.RecordImageActivity;
 import com.posegame.app.util.SharedPreferencesUtil;
 import com.posegame.app.util.ToastUtil;
 
@@ -156,7 +158,7 @@ class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.RecordViewHolder>
             }
 
             // 有截图就显示缩略图，没有就显示奖杯图标
-            String mediaUrl = record.getMediaUrl();
+            final String mediaUrl = record.getMediaUrl();
             if (mediaUrl != null && !mediaUrl.isEmpty()) {
                 String fullUrl = mediaUrl.startsWith("http")
                     ? mediaUrl
@@ -169,6 +171,17 @@ class RecordAdapter extends RecyclerView.Adapter<RecordAdapter.RecordViewHolder>
                 Glide.with(itemView.getContext()).clear(ivThumbnail);
                 ivThumbnail.setImageResource(R.drawable.ic_trophy);
             }
+
+            // 有截图的记录才允许点击查看大图
+            itemView.setOnClickListener(v -> {
+                if (mediaUrl == null || mediaUrl.isEmpty()) {
+                    return;
+                }
+                Intent intent = new Intent(itemView.getContext(), RecordImageActivity.class);
+                intent.putExtra("media_url", mediaUrl);
+                intent.putExtra("level_name", record.getLevelName());
+                itemView.getContext().startActivity(intent);
+            });
         }
     }
 }
