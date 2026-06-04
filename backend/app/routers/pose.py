@@ -3,15 +3,17 @@ from sqlalchemy.orm import Session
 from typing import List, Union
 from pydantic import BaseModel
 import json
+import sys
 
 from ..database import get_db
 from ..models import Level
 from ..schemas import Keypoint, TargetPose
 
 router = APIRouter(prefix="/api/pose", tags=["pose"])
-
-# MediaPipe Pose keypoint names (33 landmarks from MediaPipe)
-KEYPOINT_NAMES = [
+# uvicorn 的日志配置把 root 锁在 WARNING，子进程 logger 经常出不来。
+# 直接用 print 到 stderr，uvicorn 会把它转发到终端 / docker logs，
+# 用于收集 (level, total, head, shoulders, arms, body, pass) 分布数据，
+# 日后回归 1.5 系数 / 调整 weight_config 时用。
     "nose", "left_eye_inner", "left_eye", "left_eye_outer",
     "right_eye_inner", "right_eye", "right_eye_outer",
     "left_ear", "right_ear", "mouth_left", "mouth_right",
@@ -129,9 +131,9 @@ def calculate_pose_similarity(detected: dict, target: dict, weight_config: dict 
         # - 缺省 1.0（向后兼容老数据/老客户端）
         # - 被遮挡 / fallback 占位点（Android 端 conf=0.3）自动稀释
         # - 所有点都没 confidence 时退回到普通算术平均
+        # 关键点数 >= 6 时再 trim 掉最差 1 个，防止单点检测跳变拉低整部位分
         det_lookup = {k.get("name"): k for k in det_kpts if isinstance(k, dict)}
-        weighted_sum = 0.0
-        total_weight = 0.0
+        sim_w = []
         for name in part_names:
             d = keypoint_distance(name, det_kpts, tgt_lookup)
             sim = max(0, 1 - d * 1.5)
@@ -141,8 +143,14 @@ def calculate_pose_similarity(detected: dict, target: dict, weight_config: dict 
                 v = det_kp.get("confidence")
                 if isinstance(v, (int, float)):
                     w = max(0.0, min(1.0, float(v)))
-            weighted_sum += sim * w
-            total_weight += w
+            sim_w.append((sim, w))
+
+        if len(sim_w) >= 6:
+            # 去掉 similarity 最低的那 1 个
+            sim_w = sorted(sim_w, key=lambda x: x[0])[1:]
+
+        weighted_sum = sum(s * w for s, w in sim_w)
+        total_weight = sum(w for s, w in sim_w)
         if total_weight == 0:
             return 50
         return int(weighted_sum / total_weight * 100)
@@ -234,7 +242,14 @@ async def recognize_pose(
         detected_pose, target_pose, level.weight_config
     )
 
+    # 收集分分布，用来日后回归 1.5 系数；行格式：level/kp_cnt/total/head/sh/arms/body/pass
     is_pass = total_score >= level.pass_score
+    print(
+        f"POSE_SCORE recognize level={level_id} kp={len(keypoints)} "
+        f"total={total_score} head={head_score} shoulders={shoulders_score} "
+        f"arms={arms_score} body={body_score} pass={is_pass} threshold={level.pass_score}",
+        file=sys.stderr, flush=True
+    )
 
     return {
         "code": 200,
@@ -283,6 +298,13 @@ async def analyze_realtime_pose(
 
     total_score, head_score, shoulders_score, arms_score, body_score = calculate_pose_similarity(
         detected_pose, target_pose, level.weight_config
+    )
+
+    print(
+        f"POSE_SCORE realtime level={level_id} kp={len(keypoints)} "
+        f"total={total_score} head={head_score} shoulders={shoulders_score} "
+        f"arms={arms_score} body={body_score}",
+        file=sys.stderr, flush=True
     )
 
     return {

@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
+# pose.py 用 print(..., file=sys.stderr) 直出，避免 uvicorn 子进程 logger 丢失。
+
 from .routers import user_router, level_router, pose_router, game_router, sticker_router
 from .database import engine
 from . import models
