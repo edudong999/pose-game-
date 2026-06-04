@@ -23,16 +23,23 @@ KEYPOINT_NAMES = [
     "left_ankle", "right_ankle"
 ]
 
-# Body part groups for detailed scoring (using all 33 keypoints)
+# Body part groups for detailed scoring (using all 33 keypoints).
+# 元素若是 list[list] 视为子部位组：先算每个子部位分，再等权平均
+# （不让数量多但语义弱的点稀释语义重的点，例如 arms 的 10 个手指
+# 不能压过 4 个肘/腕）。
 BODY_PARTS = {
     "head": ["nose", "left_eye_inner", "left_eye", "left_eye_outer",
              "right_eye_inner", "right_eye", "right_eye_outer",
              "left_ear", "right_ear", "mouth_left", "mouth_right"],
     "shoulders": ["left_shoulder", "right_shoulder"],
-    "arms": ["left_elbow", "right_elbow", "left_wrist", "right_wrist",
-             "left_thumb", "right_thumb", "left_index", "right_index",
-             "left_middle", "right_middle", "left_ring", "right_ring",
-             "left_pinky", "right_pinky"],
+    "arms": [
+        # forearm：肘 + 腕，"胳膊伸哪"的主体
+        ["left_elbow", "right_elbow", "left_wrist", "right_wrist"],
+        # hand：5×2 手指，决定手型（开掌/握拳/指向前方）
+        ["left_thumb", "right_thumb", "left_index", "right_index",
+         "left_middle", "right_middle", "left_ring", "right_ring",
+         "left_pinky", "right_pinky"],
+    ],
     "body": ["left_hip", "right_hip", "left_knee", "right_knee",
              "left_ankle", "right_ankle"]
 }
@@ -111,6 +118,13 @@ def calculate_pose_similarity(detected: dict, target: dict, weight_config: dict 
         return (dx**2 + dy**2 + dz**2) ** 0.5
 
     def part_score(part_names: list, det_kpts: list, tgt_lookup: dict) -> int:
+        # 子部位：先算每个子部位分，再对子部位等权平均。
+        # 例如 arms = [forearm, hand]，前臂分和手型分各占 50%，
+        # 避免 10 个手指的"分高"把前臂"分低"拉成及格。
+        if part_names and isinstance(part_names[0], list):
+            sub_scores = [part_score(sub, det_kpts, tgt_lookup) for sub in part_names]
+            return int(sum(sub_scores) / len(sub_scores)) if sub_scores else 50
+
         distances = [keypoint_distance(name, det_kpts, tgt_lookup) for name in part_names]
         # Convert distance to similarity (0-1 range)
         # For 3D distance, max possible is sqrt(3) ≈ 1.73, so use factor 1.5
