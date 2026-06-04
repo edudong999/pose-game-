@@ -113,7 +113,7 @@ public class CameraActivity extends AppCompatActivity {
     private Handler framePollingHandler;
     private Runnable framePollingRunnable;
     private boolean isPolling = false;
-    private static final int FRAME_POLL_INTERVAL_MS = 500;
+    private static final int FRAME_POLL_INTERVAL_MS = 250;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -424,14 +424,24 @@ public class CameraActivity extends AppCompatActivity {
                 imageCapture.takePicture(cameraExecutor, new ImageCapture.OnImageCapturedCallback() {
                     @Override
                     public void onCaptureSuccess(@NonNull ImageProxy image) {
-                        processImageProxy(image);
+                        try {
+                            processImageProxy(image);
+                        } finally {
+                            // 等当前帧处理完再排下一帧，避免 takePicture 堆在 cameraExecutor 上
+                            // 或 PoseLandmarker 被并发调用（非线程安全）。
+                            if (isPolling) {
+                                framePollingHandler.postDelayed(framePollingRunnable, FRAME_POLL_INTERVAL_MS);
+                            }
+                        }
                     }
                     @Override
                     public void onError(@NonNull ImageCaptureException exception) {
                         // takePicture 偶发失败不阻塞下一轮
+                        if (isPolling) {
+                            framePollingHandler.postDelayed(framePollingRunnable, FRAME_POLL_INTERVAL_MS);
+                        }
                     }
                 });
-                framePollingHandler.postDelayed(this, FRAME_POLL_INTERVAL_MS);
             }
         };
         framePollingHandler.post(framePollingRunnable);
