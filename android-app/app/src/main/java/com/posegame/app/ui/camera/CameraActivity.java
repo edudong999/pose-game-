@@ -568,6 +568,8 @@ public class CameraActivity extends AppCompatActivity {
             map.put("x", kp.x);
             map.put("y", kp.y);
             map.put("z", kp.z);
+            // MediaPipe visibility 透传，后端用它对每点相似度做加权平均
+            map.put("confidence", kp.confidence);
             keypointData.add(map);
         }
 
@@ -709,6 +711,8 @@ public class CameraActivity extends AppCompatActivity {
             map.put("x", kp.x);
             map.put("y", kp.y);
             map.put("z", kp.z);
+            // MediaPipe visibility 透传
+            map.put("confidence", kp.confidence);
             keypointData.add(map);
         }
 

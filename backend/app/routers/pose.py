@@ -125,11 +125,27 @@ def calculate_pose_similarity(detected: dict, target: dict, weight_config: dict 
             sub_scores = [part_score(sub, det_kpts, tgt_lookup) for sub in part_names]
             return int(sum(sub_scores) / len(sub_scores)) if sub_scores else 50
 
-        distances = [keypoint_distance(name, det_kpts, tgt_lookup) for name in part_names]
-        # Convert distance to similarity (0-1 range)
-        # For 3D distance, max possible is sqrt(3) ≈ 1.73, so use factor 1.5
-        similarities = [max(0, 1 - d * 1.5) for d in distances]
-        return int(sum(similarities) / len(similarities) * 100) if similarities else 50
+        # 用 MediaPipe 的 confidence（= visibility）做加权平均：
+        # - 缺省 1.0（向后兼容老数据/老客户端）
+        # - 被遮挡 / fallback 占位点（Android 端 conf=0.3）自动稀释
+        # - 所有点都没 confidence 时退回到普通算术平均
+        det_lookup = {k.get("name"): k for k in det_kpts if isinstance(k, dict)}
+        weighted_sum = 0.0
+        total_weight = 0.0
+        for name in part_names:
+            d = keypoint_distance(name, det_kpts, tgt_lookup)
+            sim = max(0, 1 - d * 1.5)
+            det_kp = det_lookup.get(name)
+            w = 1.0
+            if det_kp and isinstance(det_kp, dict):
+                v = det_kp.get("confidence")
+                if isinstance(v, (int, float)):
+                    w = max(0.0, min(1.0, float(v)))
+            weighted_sum += sim * w
+            total_weight += w
+        if total_weight == 0:
+            return 50
+        return int(weighted_sum / total_weight * 100)
 
     head_score = part_score(BODY_PARTS["head"], det_kpts, tgt_lookup)
     shoulders_score = part_score(BODY_PARTS["shoulders"], det_kpts, tgt_lookup)
